@@ -1,6 +1,6 @@
 {
   "name": "study-coach-sync",
-  "version": "0.1.0+codex.20260810072025",
+  "version": "0.1.0+codex.20260810080427",
   "description": "Socratic study coaching with GitHub-backed progress and summary synchronization.",
   "author": {
     "name": "Rojojun"
@@ -21,6 +21,5 @@
       "Finish today's study unit and sync its summary to GitHub.",
       "Show my current progress and due reviews."
     ]
-  },
-  "apps": "./.app.json"
+  }
 }

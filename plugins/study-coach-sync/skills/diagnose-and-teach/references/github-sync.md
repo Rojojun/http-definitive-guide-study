@@ -11,7 +11,7 @@ Use GitHub as the cross-product source of truth for progress and summaries.
 - Ledger path: `learning-ledger.md`
 - Local cache: `/Users/deepnoid/Desktop/hjn/learning/http-definitive-guide/learning-ledger.md`
 
-Do not upload the book PDF, credentials, access tokens, or unrelated workspace files.
+The book PDF is already stored at `Http - The Definitive Guide.pdf` for private study. During ordinary progress synchronization, do not modify, delete, or re-upload it. Never upload credentials, access tokens, or unrelated workspace files.
 
 ## Resume a session
 

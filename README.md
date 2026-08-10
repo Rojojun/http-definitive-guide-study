@@ -5,38 +5,23 @@
 ## 저장소 구성
 
 - `learning-ledger.md`: 학습 계획, 현재 진도, 교정한 오해, 복습 큐, 단원별 Summary
+- `START-HERE.md`: ChatGPT에서 학습을 시작하거나 재개하는 단일 진입점
 - `Http - The Definitive Guide.pdf`: 개인 학습용 원서 PDF
 - `plugins/study-coach-sync/`: ChatGPT와 Codex 공용 학습 코치 플러그인
 - `.agents/plugins/marketplace.json`: 저장소 기반 플러그인 마켓플레이스
 
 원서 PDF를 포함하므로 이 저장소는 비공개 상태를 유지합니다.
 
-## ChatGPT Work 웹에서 가져오기
+## ChatGPT Work 웹에서 사용하기
 
-먼저 ChatGPT Work의 새 대화에서 도구 메뉴에 `GitHub Study Ledger` 연결을 추가합니다. 그다음 아래 요청을 한 번 실행합니다.
-
-```text
-@plugin-creator
-
-Import the existing plugin from my private GitHub repository
-Rojojun/http-definitive-guide-study at plugins/study-coach-sync.
-
-Use my registered MCP connection:
-plugin_asdk_app_6a797ae5ad908191806720b35d73c2d4
-
-Preserve the bundled diagnose-and-teach skill and all reference files.
-Create or update my Personal marketplace entry, validate the plugin,
-and make it installable in ChatGPT Work.
-```
-
-생성이 끝나면 `Work → Plugins → Personal → Created by me`에서 `Study Coach Sync`를 설치하고 새 대화를 시작합니다.
+`Work → Plugins`에서 공식 `GitHub` 플러그인을 설치하고 `Rojojun` 계정으로 연결합니다. 새 대화에서 `@GitHub`를 선택한 뒤 아래 요청으로 시작합니다. 별도의 ZIP, 플러그인 파일, PDF 재첨부 또는 `Plugin Creator`가 필요하지 않습니다.
 
 ```text
-@diagnose-and-teach
-
-GitHub 학습 원장을 읽고 현재 진도와 복습 큐를 확인한 뒤 다음 학습을 시작해줘.
-학습이 끝나면 진도와 Summary를 learning-ledger.md에 커밋해줘.
+Rojojun/http-definitive-guide-study 저장소 main 브랜치의
+START-HERE.md를 읽고 지시를 따라 HTTP 학습을 이어서 시작해줘.
 ```
+
+학습을 끝낼 때는 `오늘 학습을 마치고 Summary와 진도를 learning-ledger.md에 커밋해줘`라고 요청합니다.
 
 ## Codex에서 저장소 마켓플레이스 사용하기
 
