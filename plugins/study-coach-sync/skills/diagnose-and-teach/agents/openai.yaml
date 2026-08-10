@@ -1,0 +1,11 @@
+interface:
+  display_name: "진단형 학습 코치 · GitHub Sync"
+  short_description: "ChatGPT와 Codex의 학습 진도·요약을 GitHub로 동기화합니다"
+  default_prompt: "Use $diagnose-and-teach to resume my N-day Socratic study plan from GitHub and sync completed summaries back to the shared ledger."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "github"
+      description: "Read and update the shared Markdown learning ledger in GitHub."
+      transport: "streamable_http"
+      url: "https://api.githubcopilot.com/mcp/"

@@ -1,0 +1,26 @@
+{
+  "name": "study-coach-sync",
+  "version": "0.1.0+codex.20260810072025",
+  "description": "Socratic study coaching with GitHub-backed progress and summary synchronization.",
+  "author": {
+    "name": "Rojojun"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Study Coach Sync",
+    "shortDescription": "Keep Socratic study progress synchronized through GitHub.",
+    "longDescription": "Runs adaptive, bounded Socratic lessons in ChatGPT and Codex, then reads and updates a shared GitHub Markdown ledger for cross-product continuity.",
+    "developerName": "Rojojun",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Start or resume my study plan from the GitHub learning ledger.",
+      "Finish today's study unit and sync its summary to GitHub.",
+      "Show my current progress and due reviews."
+    ]
+  },
+  "apps": "./.app.json"
+}

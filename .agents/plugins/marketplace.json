@@ -1,0 +1,20 @@
+{
+  "name": "http-study",
+  "interface": {
+    "displayName": "HTTP Study"
+  },
+  "plugins": [
+    {
+      "name": "study-coach-sync",
+      "source": {
+        "source": "local",
+        "path": "./plugins/study-coach-sync"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
