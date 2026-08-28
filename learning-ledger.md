@@ -8,8 +8,8 @@
 - 총 학습일: **42일 가안** - 사전 진단 Day 0 제외
 - 하루 학습 시간: **최소 60분**
 - 시작일: 2026-08-10
-- 현재 진도: Day 9 진행 중, Part I 1-4장 누락 범위 보충
-- 상태: 1-3장 누락 범위 보충 완료, 4장 누락 범위와 Part I 최종 통합 남음
+- 현재 진도: Day 9 완료, Part I 1-4장 완료
+- 상태: Day 10 시작 대기, Part II 5장 서버 아키텍처 예정
 
 ### 42일 로드맵
 
@@ -77,6 +77,7 @@
 | 9 | 2026-08-28 | 4장 누락 보충: TIME_WAIT와 출발지 포트 고갈 | 완료 | 각 TCP hop에서 연결을 여는 측의 임시 출발지 포트가 4-tuple을 구성하며, Nginx에 TIME_WAIT가 쌓이면 Spring의 고정 목적지 포트가 아니라 Nginx의 출발지 포트 재사용이 제한됨을 도출함 | 2026-08-31 |
 | 9 | 2026-08-28 | 4장 누락 보충: HTTP/1.0 Keep-Alive·dumb proxy·Proxy-Connection | 완료 | Connection을 end-to-end처럼 전달한 dumb proxy의 상호 대기와 timeout을 설명하고, Proxy-Connection의 우회 원리·다중 프록시 한계 및 hop별 독립 연결 정책을 도출함 | 2026-08-31 |
 | 9 | 2026-08-28 | 4장 누락 보충: full·half close, FIN·RST, graceful close | 완료 | TCP를 독립된 양방향 바이트 스트림으로 설명하고 출력 FIN 이후에도 반대 방향 응답 수신이 가능함을 도출했으며, 미수신 데이터가 남은 강제 종료의 RST 위험과 graceful close 순서를 적용함 | 2026-08-31 |
+| 9 | 2026-08-28 | Part I 1-4장 최종 통합 전이 | 완료 | 비기본 HTTPS URL의 요청줄·Host·프래그먼트, 프록시 remoteAddr·XFF, ETag 불일치의 200 응답, Content-Length 절단 및 Nginx TIME_WAIT·출발지 포트 압력을 하나의 경로에서 통합해 설명함 | 2026-08-31 |
 
 ## 지식 상태
 
@@ -779,10 +780,46 @@
 - 확인된 근거: Nginx가 Spring 방향에 FIN을 보낸 뒤에도 Spring 응답을 계속 읽는 상태를 half close로 판별하고, 남은 수신 데이터를 안전하게 처리하려고 전체 소켓을 즉시 닫지 않는다고 설명했다.
 - 회상 질문: 응답을 읽지 않은 즉시 종료와 출력 FIN 후 상대 FIN까지 읽는 종료에서 상대가 관찰하는 결과와 데이터 손실 가능성을 비교하라.
 
+## Part I 1-4장 최종 요약 — HTTP: 웹의 기초
+
+- 개념 사슬: 리소스와 표현 → URL 식별·해석 → HTTP 메시지와 메서드·상태·헤더 계약 → TCP 연결의 수립·재사용·성능·종료.
+- 핵심 불변식:
+  - URL의 프래그먼트는 서버에 전달되지 않고 비기본 포트는 연결 대상과 `Host`에 유지된다.
+  - 요청 경로의 각 프록시는 독립된 TCP hop을 만들며 `remoteAddr`는 직전 상대, XFF·`Forwarded`는 신뢰 프록시가 기록한 상류 정보다.
+  - 역할별 헤더 분류와 end-to-end·hop-by-hop 전달 범위는 서로 다른 축이다.
+  - 조건부 요청은 현재 validator와 조건값을 비교해 `304`, `200`, `412`를 결정한다.
+  - TCP는 바이트 전달과 방향별 종료를 담당하고 HTTP는 메시지 경계·완전성·메서드 의미를 판단한다.
+  - 지속 연결은 handshake, slow start, TIME_WAIT와 임시 포트 압력을 줄이지만 연결 자원을 점유한다.
+- 역사·현재 구분: HTTP/0.9, 헤더 연속 줄, HTTP/1.0 Keep-Alive와 `Proxy-Connection`은 역사적 문맥이며, 현대 중간자는 모호한 문법을 거부하고 hop별 연결 정책을 명확히 처리해야 한다.
+- 실무 점검:
+  - CloudFront·ALB·Nginx·Spring 각 hop의 연결 풀, timeout, 전달 헤더와 신뢰 경계를 따로 확인한다.
+  - 잘린 응답은 Content-Length·청크 경계로 판별하고 재시도는 멱등성과 중복 방지 계약을 따른다.
+  - 다량의 `TIME_WAIT`는 짧은 연결 반복, `CLOSE_WAIT`는 상대 FIN 이후 로컬 종료 누락 가능성을 우선 조사한다.
+  - 작은 실시간 메시지는 `TCP_NODELAY`의 지연 이점과 패킷 오버헤드를 함께 평가한다.
+- 누적 회상: 비기본 HTTPS URL 요청이 여러 프록시를 거쳐 조건부 응답을 받고 절단되는 상황에서 URL·헤더·연결·완전성·재시도 판단을 계층별로 설명하라.
+
+## Day 9 일일 요약
+
+- 상태: Day 9/42 완료, Part I 1-4장 전수 감사와 누락 보충 및 최종 통합 완료.
+- 완료 범위:
+  - 1장 복합 웹페이지·HTTP 버전·Telnet
+  - 2장 userinfo·경로 파라미터·URL 확장·스킴
+  - 3장 메서드·1xx·주요 상태·헤더 분류·역사적 문법
+  - 4장 4-tuple·Delayed ACK·Slow Start·Nagle·TIME_WAIT·HTTP/1.0 Keep-Alive·연결 종료
+  - Part I 최종 전이
+- 확인된 근거:
+  - URL에서 요청줄·Host와 프래그먼트 전달 경계를 정확히 도출했다.
+  - 직전 TCP 상대와 전달 IP 헤더를 구분하고 hop별 연결 정책을 설명했다.
+  - ETag 불일치를 교정해 `If-None-Match`의 `200`·`304` 조건을 다시 설명했다.
+  - Content-Length보다 짧은 응답을 절단으로 판별하고 Nginx의 TIME_WAIT·임시 출발지 포트 압력을 연결했다.
+  - FIN half close, RST 위험과 CLOSE_WAIT 누수의 차이를 실무 Feign 상황까지 확장했다.
+- 보강할 내용: validator 값을 먼저 비교한 뒤 상태 코드를 결정하는 습관을 유지한다.
+- 다음 복습: 2026-08-31에 Part I 통합 경로를 노트 없이 재구성한다.
+- 다음 학습: Day 10/42, Part II 5장 웹 서버 아키텍처.
+
 ## 다음 학습
 
-- Day 9/42 계속
-- 4장 누락 범위 완료
-- 다음: 1-4장 최종 전이 문제와 Part I·Day 9 완료 판정
-- 마지막으로 1-4장 전이 문제를 통과한 뒤 Part I과 Day 9 완료
-- Day 10은 그다음 Part II 5장 서버 아키텍처부터 시작
+- Day 9/42 및 Part I 1-4장 완료
+- Day 10/42 시작
+- Part II 5장: 웹 서버가 요청을 수신·처리하고 응답을 생성하는 아키텍처
+- 시작 회상: 하나의 요청이 프록시 hop별 TCP 연결과 HTTP 메시지 처리를 거쳐 Spring에 도달하는 경계를 설명하기
