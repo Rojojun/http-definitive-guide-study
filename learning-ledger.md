@@ -75,6 +75,7 @@
 | 9 | 2026-08-28 | 4장 누락 보충: 트랜잭션 지연·Delayed ACK | 완료 | TCP ACK를 애플리케이션 완료와 분리해 특정 바이트까지 수신했다는 누적 확인으로 설명하고 Spring의 10초 처리 중에도 커널 ACK가 먼저 완료될 수 있음을 도출함 | 2026-08-31 |
 | 9 | 2026-08-28 | 4장 누락 보충: Slow Start·Nagle/TCP_NODELAY | 완료 | 새 연결과 워밍된 지속 연결의 초기 전송량 차이를 혼잡 윈도우로 설명하고, TCP_NODELAY가 작은 메시지 지연을 줄이는 대신 세그먼트 수와 프로토콜 오버헤드를 늘릴 수 있음을 게임 사례에 적용함 | 2026-08-31 |
 | 9 | 2026-08-28 | 4장 누락 보충: TIME_WAIT와 출발지 포트 고갈 | 완료 | 각 TCP hop에서 연결을 여는 측의 임시 출발지 포트가 4-tuple을 구성하며, Nginx에 TIME_WAIT가 쌓이면 Spring의 고정 목적지 포트가 아니라 Nginx의 출발지 포트 재사용이 제한됨을 도출함 | 2026-08-31 |
+| 9 | 2026-08-28 | 4장 누락 보충: HTTP/1.0 Keep-Alive·dumb proxy·Proxy-Connection | 완료 | Connection을 end-to-end처럼 전달한 dumb proxy의 상호 대기와 timeout을 설명하고, Proxy-Connection의 우회 원리·다중 프록시 한계 및 hop별 독립 연결 정책을 도출함 | 2026-08-31 |
 
 ## 지식 상태
 
@@ -759,10 +760,19 @@
 - 확인된 근거: `Nginx:53000 → Spring:8080`에서 Nginx에 TIME_WAIT가 쌓이면 재사용이 제한되는 쪽은 Nginx의 `53000`임을 4-tuple로 설명했다.
 - 회상 질문: 하나의 L7 LB 출발지 IP가 같은 Nginx 주소로 짧은 연결을 반복할 때 어느 포트 공간이 소모되며 목적지 리스닝 포트는 왜 고갈되지 않는가?
 
+## Day 9 보충 단원 — HTTP/1.0 Keep-Alive와 프록시
+
+- 결과: HTTP/1.0 지속 연결 확장의 동작과 dumb proxy가 hop-by-hop 연결 정책을 잘못 전달할 때 발생하는 대기 문제를 설명했다.
+- 멘탈 모델: `Connection`은 현재 TCP hop에서만 의미가 있으므로 프록시가 소비해야 한다. Client-Proxy와 Proxy-Origin은 독립된 연결이며 한쪽을 유지하더라도 다른 쪽은 종료할 수 있다.
+- 핵심 교정: dumb proxy의 상호 대기는 요청 크기나 요청 제한 오류가 아니라 timeout을 만들며, 프록시는 반드시 `Connection: close`로 바꾸는 것이 아니라 해당 헤더를 다음 hop에 그대로 전달하지 않고 각 연결 정책을 따로 결정해야 한다.
+- 역사적 맥락: `Proxy-Connection`은 이를 아는 프록시가 Client-Proxy 정책으로 소비하고 Origin은 모르는 헤더로 무시하게 만든 비표준 우회책이다. 여러 프록시 중 하나가 이를 `Connection`으로 바꾸고 다음 dumb proxy가 전달하면 같은 문제가 재발할 수 있다.
+- 확인된 근거: Client-Proxy는 Keep-Alive로 유지하면서 Proxy-Origin은 응답 후 종료할 수 있으며 그 이유가 hop별 독립 연결 정책임을 설명했다.
+- 회상 질문: 다중 프록시 경로에서 `Connection: Keep-Alive`를 그대로 전달하면 왜 양쪽의 메시지 종료 판단이 충돌할 수 있는가?
+
 ## 다음 학습
 
 - Day 9/42 계속
-- 4장 누락 단원 5: HTTP/1.0 Keep-Alive·dumb proxy·Proxy-Connection
-- 이후 full close·half close, FIN·RST, graceful close
+- 4장 누락 단원 6: full close·half close, FIN·RST, graceful close
+- 이후 1-4장 최종 전이 문제와 Part I 완료 판정
 - 마지막으로 1-4장 전이 문제를 통과한 뒤 Part I과 Day 9 완료
 - Day 10은 그다음 Part II 5장 서버 아키텍처부터 시작
