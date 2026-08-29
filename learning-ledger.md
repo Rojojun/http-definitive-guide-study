@@ -8,8 +8,8 @@
 - 총 학습일: **42일 가안** - 사전 진단 Day 0 제외
 - 하루 학습 시간: **최소 60분**
 - 시작일: 2026-08-10
-- 현재 진도: Day 9 완료, Part I 1-4장 완료
-- 상태: Day 10 시작 대기, Part II 5장 서버 아키텍처 예정
+- 현재 진도: Day 10 진행 중, Part II 5장 웹 서버
+- 상태: D9 복습 통과, 웹 서버 요청 처리 경계 완료
 
 ### 42일 로드맵
 
@@ -78,6 +78,7 @@
 | 9 | 2026-08-28 | 4장 누락 보충: HTTP/1.0 Keep-Alive·dumb proxy·Proxy-Connection | 완료 | Connection을 end-to-end처럼 전달한 dumb proxy의 상호 대기와 timeout을 설명하고, Proxy-Connection의 우회 원리·다중 프록시 한계 및 hop별 독립 연결 정책을 도출함 | 2026-08-31 |
 | 9 | 2026-08-28 | 4장 누락 보충: full·half close, FIN·RST, graceful close | 완료 | TCP를 독립된 양방향 바이트 스트림으로 설명하고 출력 FIN 이후에도 반대 방향 응답 수신이 가능함을 도출했으며, 미수신 데이터가 남은 강제 종료의 RST 위험과 graceful close 순서를 적용함 | 2026-08-31 |
 | 9 | 2026-08-28 | Part I 1-4장 최종 통합 전이 | 완료 | 비기본 HTTPS URL의 요청줄·Host·프래그먼트, 프록시 remoteAddr·XFF, ETag 불일치의 200 응답, Content-Length 절단 및 Nginx TIME_WAIT·출발지 포트 압력을 하나의 경로에서 통합해 설명함 | 2026-08-31 |
+| 10 | 2026-08-29 | 5장: 웹 서버 요청 처리 경계 | 완료 | 커널·Tomcat·Spring MVC·비즈니스 코드의 책임을 분리하고, Tomcat의 HTTP 파싱·Servlet 호출과 Spring의 라우팅·JSON 변환, Tomcat의 응답 바이트 전송을 순서대로 설명함 | 2026-09-01 |
 
 ## 지식 상태
 
@@ -817,9 +818,18 @@
 - 다음 복습: 2026-08-31에 Part I 통합 경로를 노트 없이 재구성한다.
 - 다음 학습: Day 10/42, Part II 5장 웹 서버 아키텍처.
 
+## Day 10 단원 1 요약 — 웹 서버 요청 처리 경계
+
+- 결과: 원시 TCP 바이트가 Spring Controller 실행과 HTTP 응답 전송으로 이어지는 계층별 책임을 설명했다.
+- 멘탈 모델: 커널은 TCP 연결·바이트를 관리하고 Tomcat은 연결 수락·HTTP 파싱·Servlet 요청/응답 생성과 Servlet 호출을 담당한다. Spring MVC는 DispatcherServlet 흐름에서 라우팅·컨트롤러 실행·표현 변환을 수행하며 Tomcat이 최종 HTTP 바이트를 소켓으로 전송한다.
+- 핵심 교정: Tomcat의 리스닝 포트는 애플리케이션 시작 시 열리며 요청마다 새로 열리지 않는다. DispatcherServlet은 Spring이 임의 실행하는 것이 아니라 Tomcat이 등록된 Servlet로 호출한다.
+- 실무 연결: Controller 반환 객체는 Spring의 `HttpMessageConverter`가 JSON으로 변환하고, 상태줄·헤더·본문의 실제 네트워크 전송은 Servlet 컨테이너와 커널 경계를 거친다.
+- 확인된 근거: `OrderResponse`의 JSON 변환은 Spring, HTTP 응답 바이트 전송은 Tomcat으로 구분했다.
+- 회상 질문: 요청 바이트 수신부터 Controller 반환 객체의 JSON 응답 전송까지 커널·Tomcat·Spring의 책임을 순서대로 설명하라.
+
 ## 다음 학습
 
-- Day 9/42 및 Part I 1-4장 완료
-- Day 10/42 시작
-- Part II 5장: 웹 서버가 요청을 수신·처리하고 응답을 생성하는 아키텍처
-- 시작 회상: 하나의 요청이 프록시 hop별 TCP 연결과 HTTP 메시지 처리를 거쳐 Spring에 도달하는 경계를 설명하기
+- Day 10/42 진행 중
+- Part II 5장 웹 서버
+- 다음 단원: 단일 스레드·멀티프로세스·멀티스레드·다중화 I/O의 동시 연결 처리 구조
+- 이후 리소스 매핑·가상 호스팅·MIME·리다이렉션·로깅과 5장 통합
