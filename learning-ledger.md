@@ -9,7 +9,7 @@
 - 하루 학습 시간: **최소 60분**
 - 시작일: 2026-08-10
 - 현재 진도: Day 10 진행 중, Part II 5장 웹 서버
-- 상태: D9 복습 통과, 웹 서버 요청 처리 경계·동시 연결 처리 구조 완료
+- 상태: D9 복습 통과, 웹 서버 요청 처리 경계·동시 연결·리소스 매핑 완료
 
 ### 42일 로드맵
 
@@ -80,6 +80,7 @@
 | 9 | 2026-08-28 | Part I 1-4장 최종 통합 전이 | 완료 | 비기본 HTTPS URL의 요청줄·Host·프래그먼트, 프록시 remoteAddr·XFF, ETag 불일치의 200 응답, Content-Length 절단 및 Nginx TIME_WAIT·출발지 포트 압력을 하나의 경로에서 통합해 설명함 | 2026-08-31 |
 | 10 | 2026-08-29 | 5장: 웹 서버 요청 처리 경계 | 완료 | 커널·Tomcat·Spring MVC·비즈니스 코드의 책임을 분리하고, Tomcat의 HTTP 파싱·Servlet 호출과 Spring의 라우팅·JSON 변환, Tomcat의 응답 바이트 전송을 순서대로 설명함 | 2026-09-01 |
 | 10 | 2026-08-30 | 5장: 동시 연결 처리와 I/O 모델 | 완료 | 단일 스레드·워커 풀·다중화 I/O의 병목을 구분하고 Tomcat NIO가 JDBC 블로킹을 제거하지 않음을 설명했으며, WebFlux+JDBC 격리와 WebFlux+R2DBC의 대기 중 스레드 점유 차이를 적용함 | 2026-09-02 |
+| 10 | 2026-08-31 | 5장: 리소스 매핑·document root·가상 호스팅 | 완료 | Host로 가상 호스트·애플리케이션을 선택한 뒤 요청 경로를 정적 파일 또는 Spring HandlerMapping에 연결함을 설명하고, 디코딩·정규화 후 document root 내부 여부를 검증해 경로 순회를 차단함 | 2026-09-03 |
 
 ## 지식 상태
 
@@ -837,9 +838,18 @@
 - 확인된 근거: `WebFlux+JDBC+boundedElastic`은 블로킹 작업을 별도 풀로 옮긴 것이고, `WebFlux+R2DBC`는 DB 대기 동안 스레드를 붙잡지 않는다고 구분했다.
 - 회상 질문: Tomcat NIO, Spring MVC 워커, Netty 이벤트 루프, boundedElastic, R2DBC에서 DB 10초 지연이 각각 어느 자원을 점유하는지 비교하라.
 
+## Day 10 단원 3 요약 — 리소스 매핑과 가상 호스팅
+
+- 결과: 같은 IP의 여러 사이트를 Host로 구분하고 요청 경로를 정적 파일 또는 동적 핸들러에 안전하게 매핑했다.
+- 멘탈 모델: 서버는 먼저 `Host`로 가상 호스트·애플리케이션을 선택한 뒤 요청 경로를 해당 사이트의 document root 또는 애플리케이션 라우팅 규칙에 연결한다. document root는 외부에 공개하도록 허용한 서버 파일 트리의 최상위 경계다.
+- 핵심 교정: 경로의 `../` 문자열만 먼저 검사하면 인코딩으로 우회될 수 있다. 정해진 규칙으로 디코딩하고 점 경로를 정규화한 최종 경로가 document root 내부인지 같은 해석 결과로 검증해야 한다.
+- 실무 연결: 정적 `/css/app.css`는 파일로 매핑될 수 있고 동적 `/orders/42`는 Tomcat의 HTTP 파싱과 DispatcherServlet 호출 후 HandlerMapping을 통해 Controller에 매핑된다.
+- 확인된 근거: `/srv/web/public/assets/../../config.yml`을 `/srv/web/config.yml`로 정규화해 document root 밖이므로 거부하고, Host 선택 뒤 Spring 라우팅 순서를 설명했다.
+- 회상 질문: 같은 IP의 두 도메인에서 Host·요청 경로·document root·HandlerMapping이 리소스를 선택하는 순서를 설명하라.
+
 ## 다음 학습
 
 - Day 10/42 진행 중
 - Part II 5장 웹 서버
-- 다음 단원: 리소스 매핑·document root·가상 호스팅
-- 이후 MIME 타입·리다이렉션·로깅과 5장 통합
+- 다음 단원: MIME 타입·응답 생성·리다이렉션·접근 로그
+- 이후 5장 최종 통합 전이와 Day 10 완료
