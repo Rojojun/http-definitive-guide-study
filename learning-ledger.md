@@ -83,6 +83,7 @@
 | 10 | 2026-08-31 | 5장: 리소스 매핑·document root·가상 호스팅 | 완료 | Host로 가상 호스트·애플리케이션을 선택한 뒤 요청 경로를 정적 파일 또는 Spring HandlerMapping에 연결함을 설명하고, 디코딩·정규화 후 document root 내부 여부를 검증해 경로 순회를 차단함 | 2026-09-03 |
 | 10 | 2026-09-02 | 5장: MIME 타입·리다이렉션·접근 로그 | 완료 | Content-Type을 표현 해석 계약으로 설명하고 Feign 디코딩 불일치를 예측했으며, Location 기반 두 번째 요청과 trusted proxy가 정리한 XFF·Forwarded만 신뢰하는 로그 경계를 도출함 | 2026-09-05 |
 | 11 | 2026-09-08 | 6장: 포워드·리버스 프록시의 배치와 연결 경계 | 완료 | 포워드 프록시는 클라이언트를, 리버스 프록시는 서버를 대리함을 구분하고 CONNECT 경로에서 최종 서버의 `remoteAddr`가 포워드 프록시임을 도출함 | 2026-09-11 |
+| 11 | 2026-09-09 | 6장: HTTP/1.1 프록시 요청 대상 형식 | 완료 | Nginx-Spring 직접 연결에서 origin-form을 선택하고 absolute-form의 URI와 Host가 충돌할 때 URI 기준으로 목적지와 Host를 재구성함 | 2026-09-12 |
 
 ## 지식 상태
 
@@ -191,6 +192,10 @@
 - 명시적 포워드 프록시의 HTTPS `CONNECT`에서는 브라우저-프록시와 프록시-오리진이 별도 TCP 연결이며, 터널 안 TLS의 종단은 브라우저와 오리진이다.
 - 리버스 프록시의 내부 전달은 일반적으로 `3xx Location` 리다이렉션이 아니므로 클라이언트 URL이 바뀌거나 내부 서버 주소가 노출되지 않는다.
 
+- 직접 오리진이나 리버스 프록시에는 경로·질의만 담은 `origin-form`, 명시적 포워드 프록시에는 전체 URI인 `absolute-form`, CONNECT에는 `host:port`인 `authority-form`을 사용한다.
+- `absolute-form`의 URI와 수신 `Host`가 충돌하면 프록시는 URI의 authority를 기준으로 목적지를 선택하고 전달할 `Host`를 다시 생성한다.
+- Nginx가 `proxy_pass`로 업스트림을 이미 아는 일반적인 백엔드 직접 연결은 포워드 프록시 요청이 아니므로 `origin-form`을 사용한다.
+
 ### 보강할 내용
 
 - 임의의 프록시 경로에서 `remoteAddr`와 `X-Forwarded-For`를 힌트 없이 도출하기
@@ -220,6 +225,7 @@
 | 2026-08-21 | 생성 성공과 삭제 성공에서 `201 Location`, `200`, `204`의 상태 코드·헤더·본문 계약을 비교하라. | `201`의 위치 식별과 `204`에 본문을 포함할 수 없는 모순을 정확히 설명함 |
 | 2026-08-23 | 생성·재검증·수정 충돌·삭제의 연속 흐름에서 상태 코드와 헤더·본문·캐시 동작을 추적하라. | 선택지를 축소한 뒤 `304` 무본문·캐시 사용과 `412` 수정 거부를 정확히 구분함 |
 | 2026-09-11 | 명시적 포워드 프록시의 HTTPS CONNECT에서 두 TCP 연결의 개설 주체, TLS 종단, 오리진의 `remoteAddr`를 설명하라. | 포워드 프록시가 오리진 TCP 연결을 만들고 오리진은 프록시 주소를 관찰함을 교정 후 설명함 |
+| 2026-09-12 | origin-form·absolute-form·authority-form의 사용 위치를 구분하고 absolute-form URI와 Host 충돌 시 프록시의 처리 기준을 설명하라. | Nginx-Spring은 origin-form임을 설명하고 충돌 사례에서 절대 URI를 기준으로 목적지와 Host를 선택함 |
 
 ## Day 0 단원 요약
 
@@ -912,8 +918,18 @@
 - 회상 질문: 명시적 포워드 프록시의 HTTPS CONNECT에서 브라우저·프록시·오리진 사이의 TCP 연결과 TLS 종단을 구분하라.
 - 다음 복습: 2026-09-11.
 
+## Day 11 단원 2 요약 — HTTP/1.1 프록시 요청 대상 형식
+
+- 결과: HTTP/1.1의 origin-form·absolute-form·authority-form을 연결 대상과 메서드에 따라 구분했다.
+- 멘탈 모델: 직접 연결된 오리진은 연결 문맥과 Host로 서버를 알고 경로만 받지만, 여러 오리진을 대신 호출하는 명시적 포워드 프록시는 요청줄의 전체 URI로 목적지를 결정한다. CONNECT는 터널 목적지의 host와 port만 전달한다.
+- 핵심 교정: absolute-form을 단순한 포트 구분용으로 한정하지 않으며, URI와 Host가 충돌하면 프록시는 Host가 아니라 absolute-form URI의 authority를 기준으로 처리한다.
+- 실무 연결: Nginx의 `proxy_pass http://spring:8080`처럼 업스트림이 설정된 리버스 프록시-백엔드 연결은 일반적으로 `GET /orders/42` 형태의 origin-form을 사용한다.
+- 확인된 근거: Nginx-Spring 요청에서 B인 origin-form을 선택하고, `shop.example.com` URI와 다른 Host가 주어진 사례에서도 요청줄 서버로 연결해 그 authority로 Host를 재생성한다고 설명했다.
+- 회상 질문: 같은 리소스 요청을 오리진 직접 연결, 명시적 포워드 프록시, CONNECT 터널의 세 요청줄로 각각 작성하라.
+- 다음 복습: 2026-09-12.
+
 ## 다음 학습
 
 - Day 11/42 진행 중
-- Part II 6장: 명시적 프록시의 요청 대상 형식
-- 다음 질문: 오리진 서버로 직접 보내는 origin-form, 명시적 포워드 프록시로 보내는 absolute-form, CONNECT의 authority-form을 구분하기
+- Part II 6장: 프록시의 메시지 전달과 hop-by-hop 헤더 제거
+- 다음 질문: `Connection` 헤더가 지목한 필드까지 프록시가 제거해야 하는 이유와 잘못 전달했을 때의 결과
