@@ -84,6 +84,7 @@
 | 10 | 2026-09-02 | 5장: MIME 타입·리다이렉션·접근 로그 | 완료 | Content-Type을 표현 해석 계약으로 설명하고 Feign 디코딩 불일치를 예측했으며, Location 기반 두 번째 요청과 trusted proxy가 정리한 XFF·Forwarded만 신뢰하는 로그 경계를 도출함 | 2026-09-05 |
 | 11 | 2026-09-08 | 6장: 포워드·리버스 프록시의 배치와 연결 경계 | 완료 | 포워드 프록시는 클라이언트를, 리버스 프록시는 서버를 대리함을 구분하고 CONNECT 경로에서 최종 서버의 `remoteAddr`가 포워드 프록시임을 도출함 | 2026-09-11 |
 | 11 | 2026-09-09 | 6장: HTTP/1.1 프록시 요청 대상 형식 | 완료 | Nginx-Spring 직접 연결에서 origin-form을 선택하고 absolute-form의 URI와 Host가 충돌할 때 URI 기준으로 목적지와 Host를 재구성함 | 2026-09-12 |
+| 11 | 2026-09-13 | 6장: Connection 토큰과 hop-by-hop 헤더 제거 | 완료 | Connection 자체와 지목된 확장 헤더를 함께 제거하고 close 정책을 다음 연결에 복사하지 않으며 Authorization·Content-Type은 종단 간 전달함 | 2026-09-16 |
 
 ## 지식 상태
 
@@ -196,6 +197,10 @@
 - `absolute-form`의 URI와 수신 `Host`가 충돌하면 프록시는 URI의 authority를 기준으로 목적지를 선택하고 전달할 `Host`를 다시 생성한다.
 - Nginx가 `proxy_pass`로 업스트림을 이미 아는 일반적인 백엔드 직접 연결은 포워드 프록시 요청이 아니므로 `origin-form`을 사용한다.
 
+- 프록시는 `Connection` 헤더뿐 아니라 그 값이 지목한 헤더 필드도 현재 hop의 연결 옵션으로 취급해 다음 hop으로 전달하지 않는다.
+- `Connection: close`는 현재 TCP 연결의 종료 정책이며 프록시가 만드는 다음 연결의 유지·종료 정책은 독립적으로 결정한다.
+- 임의의 `X-` 헤더가 자동으로 hop-by-hop이 되는 것은 아니며, Connection 토큰과 표준 정의 또는 프록시 정책을 기준으로 전달 범위를 판단한다.
+
 ### 보강할 내용
 
 - 임의의 프록시 경로에서 `remoteAddr`와 `X-Forwarded-For`를 힌트 없이 도출하기
@@ -226,6 +231,7 @@
 | 2026-08-23 | 생성·재검증·수정 충돌·삭제의 연속 흐름에서 상태 코드와 헤더·본문·캐시 동작을 추적하라. | 선택지를 축소한 뒤 `304` 무본문·캐시 사용과 `412` 수정 거부를 정확히 구분함 |
 | 2026-09-11 | 명시적 포워드 프록시의 HTTPS CONNECT에서 두 TCP 연결의 개설 주체, TLS 종단, 오리진의 `remoteAddr`를 설명하라. | 포워드 프록시가 오리진 TCP 연결을 만들고 오리진은 프록시 주소를 관찰함을 교정 후 설명함 |
 | 2026-09-12 | origin-form·absolute-form·authority-form의 사용 위치를 구분하고 absolute-form URI와 Host 충돌 시 프록시의 처리 기준을 설명하라. | Nginx-Spring은 origin-form임을 설명하고 충돌 사례에서 절대 URI를 기준으로 목적지와 Host를 선택함 |
+| 2026-09-16 | `Connection: close, X-Secret`이 있는 요청을 프록시가 전달할 때 제거·유지할 헤더와 다음 hop의 연결 종료 정책을 설명하라. | Connection과 X-Secret을 제거하고 Authorization·Content-Type을 유지하며 close를 다음 hop에 복사하지 않는다고 설명함 |
 
 ## Day 0 단원 요약
 
@@ -928,8 +934,18 @@
 - 회상 질문: 같은 리소스 요청을 오리진 직접 연결, 명시적 포워드 프록시, CONNECT 터널의 세 요청줄로 각각 작성하라.
 - 다음 복습: 2026-09-12.
 
+## Day 11 단원 3 요약 — Connection 토큰과 hop-by-hop 헤더 제거
+
+- 결과: 프록시가 Connection 헤더와 그 토큰이 지목한 필드를 함께 제거하고 각 hop의 연결 정책을 독립적으로 결정함을 설명했다.
+- 멘탈 모델: Connection은 현재 인접 TCP 연결에만 적용되는 옵션 목록이다. 프록시는 수신 연결의 옵션을 소비한 뒤 다음 연결에 맞는 메시지를 새로 구성해야 한다.
+- 핵심 교정: X-Debug·X-Internal 같은 이름 자체가 hop-by-hop을 결정하는 것이 아니라 Connection 토큰의 지목이 해당 메시지에서의 전달 금지를 만든다. 불필요한 바이트보다 의미 누출과 하류 오해가 핵심 위험이다.
+- 실무 연결: `Connection: close, X-Secret` 요청에서 Connection과 X-Secret을 제거하되 Authorization과 Content-Type은 일반적으로 유지하고, 업스트림 연결을 닫을지는 프록시의 별도 정책으로 판단한다.
+- 확인된 근거: Connection 자체와 지목된 X-Secret을 제거하고 close 정책을 다음 서버 연결에 그대로 적용하지 않는다고 설명했다.
+- 회상 질문: Connection이 지목한 확장 헤더가 왜 그 이름과 무관하게 hop-by-hop이 되는지, 프록시 체인에서 제거하지 않으면 어떤 의미 오류가 생기는지 설명하라.
+- 다음 복습: 2026-09-16.
+
 ## 다음 학습
 
 - Day 11/42 진행 중
-- Part II 6장: 프록시의 메시지 전달과 hop-by-hop 헤더 제거
-- 다음 질문: `Connection` 헤더가 지목한 필드까지 프록시가 제거해야 하는 이유와 잘못 전달했을 때의 결과
+- Part II 6장: Via와 Max-Forwards를 이용한 프록시 경로 진단
+- 다음 질문: 각 프록시가 Via를 추가하는 순서와 TRACE·OPTIONS에서 Max-Forwards가 감소하는 과정
