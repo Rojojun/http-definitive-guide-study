@@ -85,6 +85,7 @@
 | 11 | 2026-09-08 | 6장: 포워드·리버스 프록시의 배치와 연결 경계 | 완료 | 포워드 프록시는 클라이언트를, 리버스 프록시는 서버를 대리함을 구분하고 CONNECT 경로에서 최종 서버의 `remoteAddr`가 포워드 프록시임을 도출함 | 2026-09-11 |
 | 11 | 2026-09-09 | 6장: HTTP/1.1 프록시 요청 대상 형식 | 완료 | Nginx-Spring 직접 연결에서 origin-form을 선택하고 absolute-form의 URI와 Host가 충돌할 때 URI 기준으로 목적지와 Host를 재구성함 | 2026-09-12 |
 | 11 | 2026-09-13 | 6장: Connection 토큰과 hop-by-hop 헤더 제거 | 완료 | Connection 자체와 지목된 확장 헤더를 함께 제거하고 close 정책을 다음 연결에 복사하지 않으며 Authorization·Content-Type은 종단 간 전달함 | 2026-09-16 |
+| 11 | 2026-09-14 | 6장: Max-Forwards와 Via 경로 진단 | 완료 | Max-Forwards를 지나온 횟수가 아닌 남은 전달 허용 횟수로 교정하고 값 1에서 Proxy B가 응답하며 받은 Via에는 Proxy A만 있음을 도출함 | 2026-09-17 |
 
 ## 지식 상태
 
@@ -201,6 +202,10 @@
 - `Connection: close`는 현재 TCP 연결의 종료 정책이며 프록시가 만드는 다음 연결의 유지·종료 정책은 독립적으로 결정한다.
 - 임의의 `X-` 헤더가 자동으로 hop-by-hop이 되는 것은 아니며, Connection 토큰과 표준 정의 또는 프록시 정책을 기준으로 전달 범위를 판단한다.
 
+- TRACE·OPTIONS의 `Max-Forwards`는 이미 통과한 프록시 수가 아니라 앞으로 허용된 forwarding 횟수이며, `0`을 받은 프록시는 최종 수신자처럼 직접 응답한다.
+- `Via`는 요청이 실제로 통과하며 각 중간자가 뒤에 추가한 식별자와 수신 프로토콜 버전의 체인이다.
+- `Max-Forwards: 1`에서 Proxy A가 0으로 줄여 Proxy B에 전달하면 Proxy B가 응답하고, Proxy B가 받은 요청 Via에는 이미 전달한 Proxy A의 항목만 존재한다.
+
 ### 보강할 내용
 
 - 임의의 프록시 경로에서 `remoteAddr`와 `X-Forwarded-For`를 힌트 없이 도출하기
@@ -232,6 +237,7 @@
 | 2026-09-11 | 명시적 포워드 프록시의 HTTPS CONNECT에서 두 TCP 연결의 개설 주체, TLS 종단, 오리진의 `remoteAddr`를 설명하라. | 포워드 프록시가 오리진 TCP 연결을 만들고 오리진은 프록시 주소를 관찰함을 교정 후 설명함 |
 | 2026-09-12 | origin-form·absolute-form·authority-form의 사용 위치를 구분하고 absolute-form URI와 Host 충돌 시 프록시의 처리 기준을 설명하라. | Nginx-Spring은 origin-form임을 설명하고 충돌 사례에서 절대 URI를 기준으로 목적지와 Host를 선택함 |
 | 2026-09-16 | `Connection: close, X-Secret`이 있는 요청을 프록시가 전달할 때 제거·유지할 헤더와 다음 hop의 연결 종료 정책을 설명하라. | Connection과 X-Secret을 제거하고 Authorization·Content-Type을 유지하며 close를 다음 hop에 복사하지 않는다고 설명함 |
+| 2026-09-17 | Client→Proxy A→Proxy B→Origin에서 Max-Forwards 0·1·2의 응답 주체와 각 단계의 Via 값을 설명하라. | 초기에는 지나온 횟수와 혼동했으나 남은 전달 횟수로 교정하고 값 1에서 Proxy B 응답·Via에는 Proxy A만 있음을 설명함 |
 
 ## Day 0 단원 요약
 
@@ -944,8 +950,18 @@
 - 회상 질문: Connection이 지목한 확장 헤더가 왜 그 이름과 무관하게 hop-by-hop이 되는지, 프록시 체인에서 제거하지 않으면 어떤 의미 오류가 생기는지 설명하라.
 - 다음 복습: 2026-09-16.
 
+## Day 11 단원 4 요약 — Max-Forwards와 Via 경로 진단
+
+- 결과: Max-Forwards로 TRACE·OPTIONS 요청의 도달 깊이를 제한하고 Via로 실제 중간자 경로를 읽는 방법을 설명했다.
+- 멘탈 모델: Max-Forwards는 앞으로 허용된 전달 횟수이므로 양수를 받은 프록시는 1을 빼서 전달하고 0을 받은 프록시는 최종 수신자처럼 응답한다. Via는 요청을 실제로 전달한 각 중간자가 자신의 항목을 뒤에 추가한 기록이다.
+- 핵심 교정: Max-Forwards를 이미 탄 프록시 수로 해석하거나 다음 대상이 Origin이면 0이어도 전달한다고 보지 않는다. 모든 프록시가 TRACE 응답을 만드는 것이 아니라 0을 받은 프록시 또는 실제 Origin 중 요청이 멈춘 한 곳이 응답한다.
+- 실무 연결: Client→Proxy A→Proxy B→Origin에서 최초 값 0·1·2는 각각 Proxy A·Proxy B·Origin 응답을 만들며, 값 1에서 Proxy B가 받은 Via에는 요청을 전달한 Proxy A만 기록된다.
+- 확인된 근거: 반복 교정 후 Max-Forwards를 앞으로 통과 가능한 화살표 수로 재진술하고, 값 1에서 Proxy B가 받은 Via를 `1.1 proxy-a`로 정확히 도출했다.
+- 회상 질문: 세 단계 경로에서 Max-Forwards 값을 바꿨을 때 응답 주체와 최종 수신 요청의 Via 체인을 함께 추적하라.
+- 다음 복습: 2026-09-17.
+
 ## 다음 학습
 
 - Day 11/42 진행 중
-- Part II 6장: Via와 Max-Forwards를 이용한 프록시 경로 진단
-- 다음 질문: 각 프록시가 Via를 추가하는 순서와 TRACE·OPTIONS에서 Max-Forwards가 감소하는 과정
+- Part II 6장: 프록시 인증
+- 다음 질문: Origin 인증의 401·WWW-Authenticate·Authorization과 프록시 인증의 407·Proxy-Authenticate·Proxy-Authorization 구분
