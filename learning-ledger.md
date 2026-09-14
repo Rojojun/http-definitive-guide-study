@@ -86,6 +86,7 @@
 | 11 | 2026-09-09 | 6장: HTTP/1.1 프록시 요청 대상 형식 | 완료 | Nginx-Spring 직접 연결에서 origin-form을 선택하고 absolute-form의 URI와 Host가 충돌할 때 URI 기준으로 목적지와 Host를 재구성함 | 2026-09-12 |
 | 11 | 2026-09-13 | 6장: Connection 토큰과 hop-by-hop 헤더 제거 | 완료 | Connection 자체와 지목된 확장 헤더를 함께 제거하고 close 정책을 다음 연결에 복사하지 않으며 Authorization·Content-Type은 종단 간 전달함 | 2026-09-16 |
 | 11 | 2026-09-14 | 6장: Max-Forwards와 Via 경로 진단 | 완료 | Max-Forwards를 지나온 횟수가 아닌 남은 전달 허용 횟수로 교정하고 값 1에서 Proxy B가 응답하며 받은 Via에는 Proxy A만 있음을 도출함 | 2026-09-17 |
+| 11 | 2026-09-14 | 6장: 프록시 인증과 Origin 인증 | 완료 | 407·Proxy-Authenticate·Proxy-Authorization과 401·WWW-Authenticate·Authorization을 구분하고 프록시 자격 증명이 Origin에 전달되지 않음을 설명함 | 2026-09-17 |
 
 ## 지식 상태
 
@@ -206,6 +207,9 @@
 - `Via`는 요청이 실제로 통과하며 각 중간자가 뒤에 추가한 식별자와 수신 프로토콜 버전의 체인이다.
 - `Max-Forwards: 1`에서 Proxy A가 0으로 줄여 Proxy B에 전달하면 Proxy B가 응답하고, Proxy B가 받은 요청 Via에는 이미 전달한 Proxy A의 항목만 존재한다.
 
+- 포워드 프록시 인증은 `407 Proxy Authentication Required`·`Proxy-Authenticate`·`Proxy-Authorization`, Origin 인증은 `401 Unauthorized`·`WWW-Authenticate`·`Authorization`을 사용한다.
+- `Proxy-Authorization`은 해당 프록시가 소비하는 hop 단위 자격 증명이며 Origin으로 전달하지 않고, `Authorization`은 일반적으로 최종 Origin까지 전달한다.
+
 ### 보강할 내용
 
 - 임의의 프록시 경로에서 `remoteAddr`와 `X-Forwarded-For`를 힌트 없이 도출하기
@@ -238,6 +242,7 @@
 | 2026-09-12 | origin-form·absolute-form·authority-form의 사용 위치를 구분하고 absolute-form URI와 Host 충돌 시 프록시의 처리 기준을 설명하라. | Nginx-Spring은 origin-form임을 설명하고 충돌 사례에서 절대 URI를 기준으로 목적지와 Host를 선택함 |
 | 2026-09-16 | `Connection: close, X-Secret`이 있는 요청을 프록시가 전달할 때 제거·유지할 헤더와 다음 hop의 연결 종료 정책을 설명하라. | Connection과 X-Secret을 제거하고 Authorization·Content-Type을 유지하며 close를 다음 hop에 복사하지 않는다고 설명함 |
 | 2026-09-17 | Client→Proxy A→Proxy B→Origin에서 Max-Forwards 0·1·2의 응답 주체와 각 단계의 Via 값을 설명하라. | 초기에는 지나온 횟수와 혼동했으나 남은 전달 횟수로 교정하고 값 1에서 Proxy B 응답·Via에는 Proxy A만 있음을 설명함 |
+| 2026-09-17 | 포워드 프록시와 Origin의 인증 실패를 각각 상태 코드·챌린지 헤더·자격 증명 헤더·전달 범위로 비교하라. | 프록시는 407·Proxy-Authenticate·Proxy-Authorization, Origin은 401·WWW-Authenticate·Authorization으로 정확히 구분함 |
 
 ## Day 0 단원 요약
 
@@ -960,8 +965,18 @@
 - 회상 질문: 세 단계 경로에서 Max-Forwards 값을 바꿨을 때 응답 주체와 최종 수신 요청의 Via 체인을 함께 추적하라.
 - 다음 복습: 2026-09-17.
 
+## Day 11 단원 5 요약 — 프록시 인증과 Origin 인증
+
+- 결과: 포워드 프록시와 Origin이 요구하는 인증 흐름을 상태 코드와 헤더 세트로 분리했다.
+- 멘탈 모델: 프록시 인증은 클라이언트와 해당 포워드 프록시 사이의 접근 제어이고, Origin 인증은 최종 애플리케이션 사용자 인증이다. 두 인증은 같은 요청에 함께 존재할 수 있지만 자격 증명의 수신자가 다르다.
+- 핵심 교정: `Proxy-Authorization`과 `Authorization`을 서로 대체하지 않으며, 프록시용 자격 증명을 Origin까지 전달하지 않는다.
+- 실무 연결: 회사 프록시 자격 증명이 틀리면 407과 Proxy-Authenticate, 프록시는 통과했지만 API Bearer 토큰이 틀리면 401과 WWW-Authenticate가 반환된다.
+- 확인된 근거: 두 실패 사례에서 상태 코드와 챌린지 헤더를 모두 정확히 도출했다.
+- 회상 질문: 하나의 요청에 프록시 인증과 Origin 인증이 함께 있을 때 각 자격 증명을 누가 소비하며 어느 실패가 407과 401을 만드는지 설명하라.
+- 다음 복습: 2026-09-17.
+
 ## 다음 학습
 
 - Day 11/42 진행 중
-- Part II 6장: 프록시 인증
-- 다음 질문: Origin 인증의 401·WWW-Authenticate·Authorization과 프록시 인증의 407·Proxy-Authenticate·Proxy-Authorization 구분
+- Part II 6장: 클라이언트의 프록시 선택과 발견
+- 다음 질문: 수동 설정·PAC·투명한 트래픽 가로채기에서 클라이언트가 프록시 존재를 아는 정도와 요청 형식 차이
