@@ -87,6 +87,7 @@
 | 11 | 2026-09-13 | 6장: Connection 토큰과 hop-by-hop 헤더 제거 | 완료 | Connection 자체와 지목된 확장 헤더를 함께 제거하고 close 정책을 다음 연결에 복사하지 않으며 Authorization·Content-Type은 종단 간 전달함 | 2026-09-16 |
 | 11 | 2026-09-14 | 6장: Max-Forwards와 Via 경로 진단 | 완료 | Max-Forwards를 지나온 횟수가 아닌 남은 전달 허용 횟수로 교정하고 값 1에서 Proxy B가 응답하며 받은 Via에는 Proxy A만 있음을 도출함 | 2026-09-17 |
 | 11 | 2026-09-14 | 6장: 프록시 인증과 Origin 인증 | 완료 | 407·Proxy-Authenticate·Proxy-Authorization과 401·WWW-Authenticate·Authorization을 구분하고 프록시 자격 증명이 Origin에 전달되지 않음을 설명함 | 2026-09-17 |
+| 11 | 2026-09-15 | 6장: PAC·fail-open/closed·가로채기 프록시 | 완료 | PAC의 DIRECT 우회 위험을 도출하고 명시적 프록시는 absolute-form, 프록시를 모르는 가로채기 방식은 origin-form을 생성함을 구분함 | 2026-09-18 |
 
 ## 지식 상태
 
@@ -210,6 +211,10 @@
 - 포워드 프록시 인증은 `407 Proxy Authentication Required`·`Proxy-Authenticate`·`Proxy-Authorization`, Origin 인증은 `401 Unauthorized`·`WWW-Authenticate`·`Authorization`을 사용한다.
 - `Proxy-Authorization`은 해당 프록시가 소비하는 hop 단위 자격 증명이며 Origin으로 전달하지 않고, `Authorization`은 일반적으로 최종 Origin까지 전달한다.
 
+- PAC는 URL별로 `PROXY`와 `DIRECT` 또는 대체 프록시 순서를 반환하며, 보안 프록시 뒤의 DIRECT fallback은 장애 시 정책을 우회하는 fail-open이 된다.
+- 가로채기 프록시에서는 브라우저가 프록시 존재를 모르고 Origin에 직접 요청한다고 인식하므로 origin-form을 만들고, 중간 프록시가 Host와 네트워크 문맥으로 목적지를 복원한다.
+- 명시적 포워드 프록시는 absolute-form을 사용하지만 HTTPS 터널 생성은 CONNECT의 authority-form을 사용한다.
+
 ### 보강할 내용
 
 - 임의의 프록시 경로에서 `remoteAddr`와 `X-Forwarded-For`를 힌트 없이 도출하기
@@ -243,6 +248,7 @@
 | 2026-09-16 | `Connection: close, X-Secret`이 있는 요청을 프록시가 전달할 때 제거·유지할 헤더와 다음 hop의 연결 종료 정책을 설명하라. | Connection과 X-Secret을 제거하고 Authorization·Content-Type을 유지하며 close를 다음 hop에 복사하지 않는다고 설명함 |
 | 2026-09-17 | Client→Proxy A→Proxy B→Origin에서 Max-Forwards 0·1·2의 응답 주체와 각 단계의 Via 값을 설명하라. | 초기에는 지나온 횟수와 혼동했으나 남은 전달 횟수로 교정하고 값 1에서 Proxy B 응답·Via에는 Proxy A만 있음을 설명함 |
 | 2026-09-17 | 포워드 프록시와 Origin의 인증 실패를 각각 상태 코드·챌린지 헤더·자격 증명 헤더·전달 범위로 비교하라. | 프록시는 407·Proxy-Authenticate·Proxy-Authorization, Origin은 401·WWW-Authenticate·Authorization으로 정확히 구분함 |
+| 2026-09-18 | PAC의 `PROXY A; PROXY B; DIRECT` 순서와 fail-open 위험, 명시적·가로채기 프록시의 요청 대상 형식을 비교하라. | DIRECT 제거로 보안 프록시 우회를 막아야 함을 설명하고 명시적 absolute-form과 가로채기 origin-form을 구분함 |
 
 ## Day 0 단원 요약
 
@@ -975,8 +981,18 @@
 - 회상 질문: 하나의 요청에 프록시 인증과 Origin 인증이 함께 있을 때 각 자격 증명을 누가 소비하며 어느 실패가 407과 401을 만드는지 설명하라.
 - 다음 복습: 2026-09-17.
 
+## Day 11 단원 6 요약 — PAC와 가로채기 프록시
+
+- 결과: 브라우저가 프록시를 선택·발견하는 방식과 프록시 존재 인식 여부가 요청 대상 형식을 바꾸는 과정을 설명했다.
+- 멘탈 모델: 수동 설정과 PAC는 브라우저가 명시적으로 프록시를 선택하므로 일반 HTTP 프록시 요청에 absolute-form을 사용한다. 가로채기 방식은 브라우저가 Origin 직접 연결로 인식해 origin-form을 만들고 네트워크가 이후 경로를 프록시로 바꾼다.
+- 핵심 교정: origin-form의 원인을 프록시가 Host로 목적지를 찾는 결과가 아니라 브라우저가 프록시를 모르는 요청 생성 시점에서 찾는다. PAC의 DIRECT fallback은 단순한 장애 대응이 아니라 보안 정책의 fail-open 여부를 결정한다.
+- 실무 연결: 모든 외부 요청이 보안 프록시를 거쳐야 한다면 `PROXY proxy-a; DIRECT`보다 DIRECT 없는 fail-closed 구성이 적합하다.
+- 확인된 근거: 내부 도메인은 DIRECT, 외부는 지정 프록시로 연결되는 PAC를 해석하고, 가로채기 요청은 origin-form이라고 최종 구분했다.
+- 회상 질문: 같은 URL을 수동 프록시, PAC의 PROXY, PAC의 DIRECT, 네트워크 가로채기로 보낼 때 TCP 연결 대상과 HTTP/1.1 요청 대상 형식을 비교하라.
+- 다음 복습: 2026-09-18.
+
 ## 다음 학습
 
 - Day 11/42 진행 중
-- Part II 6장: 클라이언트의 프록시 선택과 발견
-- 다음 질문: 수동 설정·PAC·투명한 트래픽 가로채기에서 클라이언트가 프록시 존재를 아는 정도와 요청 형식 차이
+- Part II 6장: 프록시의 정책·캐시·라우팅·변환 역할과 배치
+- 다음 질문: 같은 요청을 차단·캐시 응답·업스트림 선택·본문 변환하는 프록시가 각각 요청을 Origin까지 보내는지와 메시지를 어떻게 바꾸는지 구분
