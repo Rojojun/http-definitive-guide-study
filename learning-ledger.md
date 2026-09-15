@@ -88,6 +88,7 @@
 | 11 | 2026-09-14 | 6장: Max-Forwards와 Via 경로 진단 | 완료 | Max-Forwards를 지나온 횟수가 아닌 남은 전달 허용 횟수로 교정하고 값 1에서 Proxy B가 응답하며 받은 Via에는 Proxy A만 있음을 도출함 | 2026-09-17 |
 | 11 | 2026-09-14 | 6장: 프록시 인증과 Origin 인증 | 완료 | 407·Proxy-Authenticate·Proxy-Authorization과 401·WWW-Authenticate·Authorization을 구분하고 프록시 자격 증명이 Origin에 전달되지 않음을 설명함 | 2026-09-17 |
 | 11 | 2026-09-15 | 6장: PAC·fail-open/closed·가로채기 프록시 | 완료 | PAC의 DIRECT 우회 위험을 도출하고 명시적 프록시는 absolute-form, 프록시를 모르는 가로채기 방식은 origin-form을 생성함을 구분함 | 2026-09-18 |
+| 11 | 2026-09-15 | 6장: 프록시의 정책·캐시·라우팅·변환·터널 역할 | 완료 | 필터·캐시의 Origin 미호출과 라우터·CONNECT 터널의 Origin 호출을 구분하고 본문 변환 시 Content-Type·Length·validator 갱신 필요를 설명함 | 2026-09-18 |
 
 ## 지식 상태
 
@@ -215,6 +216,10 @@
 - 가로채기 프록시에서는 브라우저가 프록시 존재를 모르고 Origin에 직접 요청한다고 인식하므로 origin-form을 만들고, 중간 프록시가 Host와 네트워크 문맥으로 목적지를 복원한다.
 - 명시적 포워드 프록시는 absolute-form을 사용하지만 HTTPS 터널 생성은 CONNECT의 authority-form을 사용한다.
 
+- 접근 필터와 유효한 프록시 캐시는 Origin을 호출하지 않고 응답할 수 있지만, 콘텐츠 라우터와 CONNECT 터널은 선택한 Origin에 연결한다.
+- 프록시가 표현 본문을 변환하면 `Content-Type`, `Content-Length`, `ETag`, `Digest` 등 본문을 설명·검증하는 메타데이터도 새 표현에 맞게 갱신해야 한다.
+- TLS를 종료하지 않는 CONNECT 프록시는 암호화된 내용을 해석·변환할 수 없지만 Origin TCP 연결을 만들고 TLS 바이트를 중계하므로 Origin 호출은 발생한다.
+
 ### 보강할 내용
 
 - 임의의 프록시 경로에서 `remoteAddr`와 `X-Forwarded-For`를 힌트 없이 도출하기
@@ -249,6 +254,7 @@
 | 2026-09-17 | Client→Proxy A→Proxy B→Origin에서 Max-Forwards 0·1·2의 응답 주체와 각 단계의 Via 값을 설명하라. | 초기에는 지나온 횟수와 혼동했으나 남은 전달 횟수로 교정하고 값 1에서 Proxy B 응답·Via에는 Proxy A만 있음을 설명함 |
 | 2026-09-17 | 포워드 프록시와 Origin의 인증 실패를 각각 상태 코드·챌린지 헤더·자격 증명 헤더·전달 범위로 비교하라. | 프록시는 407·Proxy-Authenticate·Proxy-Authorization, Origin은 401·WWW-Authenticate·Authorization으로 정확히 구분함 |
 | 2026-09-18 | PAC의 `PROXY A; PROXY B; DIRECT` 순서와 fail-open 위험, 명시적·가로채기 프록시의 요청 대상 형식을 비교하라. | DIRECT 제거로 보안 프록시 우회를 막아야 함을 설명하고 명시적 absolute-form과 가로채기 origin-form을 구분함 |
+| 2026-09-18 | 필터·캐시·라우터·변환 프록시·CONNECT 터널에서 Origin 호출 여부와 메시지 변경 가능 범위를 비교하라. | 4번 CONNECT의 Origin 미호출을 교정한 뒤 프록시가 Origin 연결을 만들고 암호화 바이트를 중계한다고 설명함 |
 
 ## Day 0 단원 요약
 
@@ -991,8 +997,18 @@
 - 회상 질문: 같은 URL을 수동 프록시, PAC의 PROXY, PAC의 DIRECT, 네트워크 가로채기로 보낼 때 TCP 연결 대상과 HTTP/1.1 요청 대상 형식을 비교하라.
 - 다음 복습: 2026-09-18.
 
+## Day 11 단원 7 요약 — 프록시의 정책·캐시·라우팅·변환·터널 역할
+
+- 결과: 프록시가 직접 응답하거나 Origin을 선택·호출하고, 필요하면 표현을 변환하거나 암호화 바이트를 중계하는 역할을 구분했다.
+- 멘탈 모델: 필터는 정책으로 요청을 차단하고 캐시는 저장된 최신 응답을 재사용할 수 있다. 라우터는 적절한 Origin을 선택하며 변환 프록시는 표현과 메타데이터를 함께 바꾼다. CONNECT 터널은 내용을 보지 않지만 Origin 연결을 생략하지 않는다.
+- 핵심 교정: TLS 내용을 해석할 수 없다는 사실을 Origin 미호출로 연결하지 않는다. 비복호화 CONNECT 프록시는 Origin과 별도 TCP 연결을 만들고 암호화 바이트를 양방향 중계한다.
+- 실무 연결: PNG를 WebP로 바꿀 때 Content-Type과 Content-Length뿐 아니라 ETag·Digest 같은 검증값도 새 표현에 맞게 재생성하거나 제거해야 한다.
+- 확인된 근거: 필터·캐시·라우터 사례의 Origin 호출 여부를 정확히 구분하고 CONNECT 터널의 Origin 호출을 교정 후 설명했다.
+- 회상 질문: 프록시가 요청을 직접 거부·캐시 응답·Origin 라우팅·표현 변환·TLS 터널링할 때 Origin 호출과 메시지 해석 가능 여부를 비교하라.
+- 다음 복습: 2026-09-18.
+
 ## 다음 학습
 
 - Day 11/42 진행 중
-- Part II 6장: 프록시의 정책·캐시·라우팅·변환 역할과 배치
-- 다음 질문: 같은 요청을 차단·캐시 응답·업스트림 선택·본문 변환하는 프록시가 각각 요청을 Origin까지 보내는지와 메시지를 어떻게 바꾸는지 구분
+- Part II 6장 마지막 단원: 프록시 상호운용성과 루프 방지
+- 다음 질문: 프록시가 모르는 확장 메서드·end-to-end 헤더를 임의로 제거하면 안 되는 이유와 Via를 이용한 루프 탐지
